@@ -31,6 +31,12 @@ if ! zmodload -e zsh/mathfunc 2>/dev/null; then
     }
 fi
 
+# 🔐 ssh: 端末固有の TERM ではなく汎用の xterm-256color をリモートに広告
+# (pixi-tmux が未知の terminfo を引けず起動失敗するのを回避)
+ssh() {
+    TERM=xterm-256color command ssh "$@"
+}
+
 # λ lambda cloud command
 lambda-cloud() {
   if [[ -n "$1" ]]; then
