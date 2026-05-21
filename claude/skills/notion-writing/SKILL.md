@@ -1,211 +1,91 @@
 ---
 name: notion-writing
 description: >
-  Notion MCP (mcp__notion__) でページにコンテンツを書き込むときのルール。
-  ブロックタイプの使い分け（heading, code, callout, divider 等）、
-  一括削除→再作成パターン、ページネーション、
-  update-a-block の制約、コードブロックの書き方を参照する。
+  Guide for writing content to Notion pages via the mcp__notion__ MCP server.
+  Covers DB template discovery before adding new pages (fetch the DB's
+  registered template page and match its structure / heading colors /
+  section order before writing), block type selection (heading_1-3,
+  paragraph, bulleted_list_item, to_do, callout, code, divider, bookmark),
+  URL embedding as bookmark cards instead of raw text, the Task Description
+  / Result / Notes page template with colored heading backgrounds, safe
+  batch sizes for patch-block-children, and common failures including the
+  intermittent "body.children should be an array" serialization error,
+  delete-a-block permission denials for blocks the agent did not create,
+  and update-a-block limitations. Use when adding or updating Notion pages
+  via mcp__notion__, creating new pages inside a database, writing task or
+  project templates, embedding URLs, or debugging Notion write failures.
 user-invocable: true
 ---
 
 # Notion MCP 書き込みガイド
 
-Notion MCP（`mcp__notion__`）経由でNotion ページにコンテンツを作成・更新する際の実践知見。
+Notion MCP (`mcp__notion__`) でページにコンテンツを作成・更新するときの実践知見。詳細は `reference/` 以下のファイルを参照する。
 
-## ブロックタイプ一覧
+## Quick navigation
 
-MCP ツールのスキーマ定義では `paragraph` と `bulleted_list_item` しか記載されていないが、**実際には以下のブロックタイプがすべて動作する**。
+| やりたいこと | 参照 |
+|---|---|
+| DB に新規ページを追加する前のテンプレート確認 | [reference/db-template-discovery.md](reference/db-template-discovery.md) |
+| どのブロックタイプを使うか / JSON の書き方 | [reference/block-types.md](reference/block-types.md) |
+| URL を埋め込む（カード / iframe / リンク） | [reference/urls-and-bookmarks.md](reference/urls-and-bookmarks.md) |
+| タスク / プロジェクトページの雛形 | [reference/task-template.md](reference/task-template.md) |
+| エラーが出た / 権限拒否 / 再試行 | [reference/troubleshooting.md](reference/troubleshooting.md) |
 
-### テキスト系
+## 最低限の原則
 
-| タイプ | 用途 | JSON 例 |
-|---|---|---|
-| `heading_1` | 大見出し（H1） | `{"type": "heading_1", "heading_1": {"rich_text": [...]}}` |
-| `heading_2` | 中見出し（H2） | `{"type": "heading_2", "heading_2": {"rich_text": [...]}}` |
-| `heading_3` | 小見出し（H3） | `{"type": "heading_3", "heading_3": {"rich_text": [...]}}` |
-| `heading_4` | 小見出し（H4） | `{"type": "heading_4", "heading_4": {"rich_text": [...]}}` |
-| `paragraph` | 通常テキスト | `{"type": "paragraph", "paragraph": {"rich_text": [...]}}` |
-| `bulleted_list_item` | 箇条書き | `{"type": "bulleted_list_item", "bulleted_list_item": {"rich_text": [...]}}` |
-| `numbered_list_item` | 番号付きリスト | `{"type": "numbered_list_item", "numbered_list_item": {"rich_text": [...]}}` |
-| `quote` | 引用 | `{"type": "quote", "quote": {"rich_text": [...]}}` |
-| `to_do` | チェックボックス | `{"type": "to_do", "to_do": {"rich_text": [...], "checked": false}}` |
+### 1. DB に新規ページを追加するときは、まずテンプレートを確認する
 
-### 装飾系
+DB に新しいページを足す指示を受けたら、いきなり書き出さない。**その DB に登録されているテンプレートページを `mcp__notion__notion-fetch` で確認** し、heading 構成・背景色・セクション順序を踏襲した骨格を作ってから本文を執筆する。テンプレートが無ければ DB 内の直近ページから共通構造を推測し、それも難しければユーザーに確認する。詳細手順とフォールバックは [db-template-discovery.md](reference/db-template-discovery.md)。
 
-| タイプ | 用途 | JSON 例 |
-|---|---|---|
-| `callout` | 注意・警告・ヒント | `{"type": "callout", "callout": {"rich_text": [...], "icon": {"type": "emoji", "emoji": "..."}}}` |
-| `code` | コードブロック | `{"type": "code", "code": {"rich_text": [...], "language": "bash"}}` |
-| `divider` | 区切り線 | `{"type": "divider", "divider": {}}` |
+### 2. ブロックタイプは豊富に使える
 
-### rich_text の書き方
+MCP ツールスキーマには `paragraph` と `bulleted_list_item` しか明示されていないが、**実際には `heading_1/2/3/4` / `to_do` / `callout` / `code` / `divider` / `bookmark` / `embed` / `quote` / `numbered_list_item` すべてが通る**（本プロジェクトで実測済み）。セクション構造をつけるには `heading_*` と `divider` を積極的に使う。装飾（太字・斜体等）は `annotations` を渡しても無視されるため、`callout` や `heading` のような別ブロックで視覚的に区別する。
 
-```json
-{"type": "text", "text": {"content": "テキスト内容"}}
-```
+見出しには `color: "gray_background"` などの**背景色**を付けられる。Task Description / Result / Notes のセクション区切りに有効（[task-template.md](reference/task-template.md) 参照）。
 
-> **注意**: MCP スキーマでは `richTextRequest` に `additionalProperties: false` が
-> 設定されており、`annotations`（bold, italic, code 等）を渡しても
-> 無視される可能性がある。装飾が必要な場合は Notion UI で手動調整するか、
-> callout / heading 等のブロックタイプで視覚的に区別する。
+### 3. URL は必ず `bookmark` ブロック
 
-## コードブロック
+生の URL 文字列や `bulleted_list_item` 内のテキストリンクではなく、`bookmark` ブロックとしてカード形式で埋め込む。参考リンク集は `heading_2 "Related Links"` + `bookmark` 連続のパターンが基本形。詳細と例外（`embed` / `rich_text.link`）は [urls-and-bookmarks.md](reference/urls-and-bookmarks.md)。
 
-シェルコマンドやコードスニペットは必ず `code` ブロックで囲む。
-Notion でシンタックスハイライトが有効になり、ワンクリックでコピーできる。
+### 4. タスクページは Task Description / Result / Notes の 3 パート
 
-```json
-{
-  "type": "code",
-  "code": {
-    "rich_text": [{"type": "text", "text": {"content": "gocryptfs ~/.encrypted ~/Documents"}}],
-    "language": "bash"
-  }
-}
-```
+ユーザーの Tasks DB で確立しているパターン。冒頭に背景色付き `heading_1` で 3 セクションを立て、Notes 配下に `heading_2` で情報・To Do・Related Links を配置する。To Do は `heading_3` でフェーズ分け → `to_do` ブロック列挙。全体の雛形 JSON は [task-template.md](reference/task-template.md) に置いてある。
 
-複数行コマンドは `\n` で改行する:
+## API 操作の要点
 
-```json
-{
-  "type": "code",
-  "code": {
-    "rich_text": [{"type": "text", "text": {"content": "# マウント\ngocryptfs ~/.encrypted ~/Documents\n\n# アンマウント\nfusermount -u ~/Documents"}}],
-    "language": "bash"
-  }
-}
-```
+### append: `mcp__notion__API-patch-block-children`
 
-主な `language` 値: `bash`, `python`, `javascript`, `typescript`, `json`, `yaml`, `sql`, `plain text`
+- `block_id`: ページ ID（ページ末尾に追加）または既存ブロック ID（そのブロック配下に追加）
+- `children`: ブロック配列
+- `after`: 既存ブロック ID の直後に挿入する場合
 
-## callout ブロック
+**バッチサイズは 20〜25 ブロック** が保守的に安全。30 超で `body.children should be an array` エラーが増える（[troubleshooting.md](reference/troubleshooting.md)）。
 
-重要な注意事項を目立たせるために使う。`icon` で絵文字を設定可能。
+### read: `mcp__notion__API-get-block-children`
 
-```json
-{
-  "type": "callout",
-  "callout": {
-    "rich_text": [{"type": "text", "text": {"content": "警告メッセージ"}}],
-    "icon": {"type": "emoji", "emoji": "\u26a0\ufe0f"}
-  }
-}
-```
+- `page_size`: 最大 100
+- `has_more` が true なら `next_cursor` で次ページを取得
+- **100 ブロック超のページはページネーション必須**
 
-よく使うアイコン:
-- `\u26a0\ufe0f` — 警告・注意
-- `\ud83d\udea8` — 重大な警告
-- `\ud83d\udca1` — ヒント・補足
+### delete: `mcp__notion__API-delete-a-block`
 
-## ページ構造のベストプラクティス
+1 ブロックずつ。**エージェントが同一セッション内で作成したブロック以外は harness が削除を拒否する** 点に注意（Notion API の制約ではない）。削除に頼らず **append-only で設計** するのが基本。対処は [troubleshooting.md](reference/troubleshooting.md)。
 
-### 階層構造
+### update: `mcp__notion__API-update-a-block`
 
-```
-heading_1: 大章タイトル
-  heading_2: 中節タイトル
-    heading_3: 小節タイトル
-      paragraph / bullet / code: 内容
-divider
-heading_1: 次の大章
-```
+MCP ツールのスキーマ都合で **ブロックタイプ変更は事実上不可**。大規模な修正は「新規作成 → 旧ブロック削除（可能なら）」のほうが確実。
 
-- `heading_1` で大章を区切る（UI上で明確にサイズが異なり視認性が高い）
-- `heading_2` で中節、`heading_3` で小節を作る
-- 大章の間に `divider` を入れて視覚的に分離する
+## よくあるエラー
 
-### コマンド付きドキュメントの構造
+- **`body.children should be an array`** — MCP シリアライズの断続的失敗。同じ payload でリトライすれば通る。
+- **`delete-a-block` Permission denied** — harness ポリシー。append-only 戦略で回避。
+- **並列 `patch-block-children` の順序乱れ** — 同一ページに並列 append すると順序が保証されない。
 
-説明テキストとコマンドを分離し、コマンドは `code` ブロックにする:
+詳細と対処は [troubleshooting.md](reference/troubleshooting.md)。
 
-```
-heading_3: 手順タイトル
-paragraph: 説明テキスト
-code: コマンド（bash）
-bulleted_list_item: 補足・注意事項
-```
+## その他の小ネタ
 
-## API 操作パターン
-
-### ブロックの追加（append）
-
-`mcp__notion__API-patch-block-children` を使用。
-
-- `block_id`: ページ ID を指定（ページ直下に追加）
-- `children`: ブロックの配列（最大 100 ブロック/リクエスト）
-- `after`: 既存ブロック ID の後に挿入する場合に指定
-
-**1 回のリクエストで 20〜25 ブロック程度が安全**。大量のコンテンツは複数回に分ける。
-
-### ブロックの取得（read）
-
-`mcp__notion__API-get-block-children` を使用。
-
-- `page_size`: 最大 100（デフォルト）
-- `start_cursor`: 次ページ取得用。レスポンスの `next_cursor` を使う
-- `has_more`: true の場合、次ページが存在する
-
-> 100 ブロックを超えるページは **必ずページネーション** が必要。
-> `has_more` を確認し、`next_cursor` で次のページを取得する。
-
-### ブロックの削除
-
-`mcp__notion__API-delete-a-block` は 1 ブロックずつ。
-大量削除（50+）の場合は **Agent ツールで並列実行** するのが効率的:
-
-```
-Agent(
-  description="Delete N Notion blocks",
-  prompt="Delete these block IDs using mcp__notion__API-delete-a-block. Run in parallel. IDs:\n..."
-)
-```
-
-### ブロックの更新（update）の制約
-
-`mcp__notion__API-update-a-block` には重要な制約がある:
-
-- `type` パラメータはオブジェクト型だが、Notion API は `heading_2` 等を
-  **ボディのトップレベル** に期待する。MCP ツールは `type` キーの下に
-  ネストしてしまうため、**ブロックタイプの変更はできない**
-- `archived: true` でブロックを削除（ゴミ箱に移動）することは可能
-- テキスト内容の更新も MCP 経由では制約がある
-
-**結論: 大規模な修正は「全削除→再作成」パターンが最も確実。**
-
-## 大規模更新の推奨ワークフロー
-
-### 1. 現在のブロック ID を取得
-
-```
-get-block-children → bash で block ID とテキストの一覧を抽出
-（ページネーションに注意）
-```
-
-### 2. 保持するブロックと削除するブロックを特定
-
-クレデンシャル等の機密情報ブロックは保持し、コンテンツブロックを特定する。
-
-### 3. Agent で一括削除
-
-```
-Agent で全 block ID を渡し、並列で delete-a-block を実行
-```
-
-### 4. patch-block-children で再作成
-
-20〜25 ブロックずつバッチで append する。構造化されたブロックタイプを使う:
-
-- `heading_2` / `heading_3` で見出し
-- `divider` で章の区切り
-- `code` でコマンド（`language: "bash"` 等）
-- `callout` で重要な注意事項
-- `paragraph` / `bulleted_list_item` で説明テキスト
-
-## 注意事項
-
-- **children パラメータ**: JSON 配列として渡す。文字列化されるとエラーになる
-- **空の rich_text**: 空行を作るには `{"type": "paragraph", "paragraph": {"rich_text": []}}`
-- **Unicode エスケープ**: 日本語テキストは Unicode エスケープ（`\uXXXX`）でも
-  そのままの文字でも動作する
-- **レート制限**: Notion API にはレート制限があるため、大量操作時は注意
-- **ゴミ箱**: 削除したブロックはゴミ箱に移動される（完全削除ではない）
+- **空行**: `{"type": "paragraph", "paragraph": {"rich_text": []}}`
+- **Unicode**: エスケープ `\uXXXX` でもそのままの文字でも動作
+- **レート制限**: 同一ワークスペースで並列数を 5-10 程度に抑える
+- **ゴミ箱**: `delete-a-block` / `archived: true` はゴミ箱移動で完全削除ではない

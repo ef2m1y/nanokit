@@ -17,6 +17,20 @@
 したがって `~/.claude/` 配下のファイルを直接編集すると nanokit リポジトリのワーキングツリーが変更される。
 設定を変更する場合は nanokit リポジトリ側で編集し `dotter deploy` で反映するのが正しいワークフロー。
 
+## コーディング基本則 (Karpathy 4 tenets)
+
+すべてのコード作成・修正・レビューで以下を守る。詳細・例外は
+`~/.claude/skills/karpathy-guidelines/SKILL.md` を参照。
+
+1. **Think before coding** — 仮定を明示し、不明点は実装前に質問する
+2. **Simplicity first** — 投機的機能を入れない。最小コードで解く
+3. **Surgical changes** — 関係ない箇所のリファクタや整形を勝手にしない
+4. **Goal-driven** — 検証可能な成功条件を先に決める
+
+コード拡張子のファイルを編集する際は、各セッション初回に
+`PreToolUse` hook (`~/.claude/scripts/karpathy-reminder.sh`) が
+リマインダを注入する。
+
 ## 環境管理ポリシー
 
 - **pixi-only**: シェルツールはすべて `pixi global` (conda-forge) で管理する。`brew`, `cargo install`, `pip install`, `go install` でツールを追加しない。
@@ -31,3 +45,78 @@
 - CLAUDE.md を編集する時
   - https://code.claude.com/docs/en/best-practices
   - https://nyosegawa.com/posts/harness-engineering-best-practices-2026/
+
+## Zotero MCP 運用
+
+ホスト横断で 1 つの Zotero ライブラリを参照するために、`zotero-mcp` は HTTP サーバー (`localhost:8321`) として `~/.claude/scripts/zotero-mcp-server.sh` 経由で起動される。バイナリは pixi env (`~/nanokit/claude/mcp-servers/zotero-mcp/`) 内。
+
+### モードの自動切替
+
+- **`mode=local`** (Zotero.app 起動中) — `curl http://localhost:23119/connector/ping` が通ったとき。`ZOTERO_LOCAL=true` で起動。メタデータ + PDF 本体 + 注釈作成が可能。
+- **`mode=web`** (Zotero.app なし or Linux サーバー) — 上記が通らないとき。`ZOTERO_LOCAL=false` + `ZOTERO_API_KEY` + `ZOTERO_LIBRARY_ID` で起動。メタデータ + フルテキスト（Zotero クラウドの索引）+ ノート + タグ + semantic search が可能。PDF バイナリは取得不可（WebDAV 運用のため）。
+
+判定は `detect_zotero_mode()` が担当。ログの先頭に `mode=local` / `mode=web` が記録される。
+
+### credentials
+
+Web API モードで必要。OS-native な secret store に保存:
+- macOS: Keychain (`security find-generic-password -s claude-zotero -a api-key`)
+- Linux GUI: GNOME Keyring (`secret-tool lookup service claude-zotero account api-key`)
+- fallback: `~/.config/nanokit/secrets.env`
+
+登録は `nanokit zotero-mcp-install` で対話的に行う。
+
+### トラブルシュート
+
+```bash
+# 現状確認
+bash ~/.claude/scripts/zotero-mcp-server.sh status
+tail -20 ~/.claude/debug/zotero-mcp.log
+
+# mode がどちらで立ち上がったか
+grep 'mode=' ~/.claude/debug/zotero-mcp.log | tail -5
+
+# 再起動
+bash ~/.claude/scripts/zotero-mcp-server.sh stop
+bash ~/.claude/scripts/zotero-mcp-server.sh start
+
+# 旧 uv tool 経路への一時切り戻し（もし残っていれば）
+ZOTERO_MCP_BINARY=$HOME/.local/bin/zotero-mcp bash ~/.claude/scripts/zotero-mcp-server.sh start
+```
+
+### 制約
+
+- **PDF バイナリ取得は Web API モード経由では不可**。ファイル同期を WebDAV (pCloud 等) に設定しているため、api.zotero.org は本体 PDF を保持していない。画像ベースの処理が必要になったら `rclone mount pcloud:` 等で WebDAV を直接マウントする（spec Appendix A 参照）。
+- 複数 PC に Zotero アプリを入れて `zotero.sqlite` を同時に書き込む構成は **DB 破損** の危険があるため禁止。Zotero.app は Mac のみ、他ホストは Web API モード専用。
+
+### バージョンアップ時の同期手順
+
+rtk が新版 (新しい hook 仕様等) を出した場合のみ:
+
+```bash
+# tmpdir で新版の rtk init -g を走らせて期待される設定を取得
+TMPHOME=$(mktemp -d)
+mkdir -p "$TMPHOME/.claude"
+HOME="$TMPHOME" rtk init -g --auto-patch
+
+# 出力された $TMPHOME/.claude/{settings.json,CLAUDE.md,RTK.md}
+# と nanokit/claude/{settings.json,CLAUDE.md,RTK.md} を diff し、
+# 必要な変更だけ手動で nanokit 側に反映してコミット → dotter deploy
+diff -u "$TMPHOME/.claude/RTK.md" "$NANOKIT/claude/RTK.md"
+```
+
+### symlink 破壊からの復旧
+
+万一 `~/.claude/settings.json` が通常ファイル化していたら:
+
+```bash
+# 1. ~/.claude 側の最新内容を nanokit に取り込み (通常ファイル → リポジトリへ)
+cp ~/.claude/settings.json "$NANOKIT/claude/settings.json"
+# 2. 通常ファイルを削除して dotter で symlink を回復
+rm ~/.claude/settings.json
+cd "$NANOKIT" && dotter deploy
+# 3. 検証
+readlink ~/.claude/settings.json   # → $NANOKIT/claude/settings.json が出れば OK
+```
+
+@RTK.md

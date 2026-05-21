@@ -78,4 +78,5 @@ alias bunx="bun x"
 export WEBHOOK_URL=
 
 # comfy-env
-source "$HOME/.comfy-env-profile"
+# source "$HOME/.comfy-env-profile"
+

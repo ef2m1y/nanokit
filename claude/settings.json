@@ -1,7 +1,9 @@
 {
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "ECC_MCP_RECONNECT_ZOTERO": "bash ~/.claude/scripts/zotero-mcp-server.sh start"
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "1000000",
+    "ECC_MCP_RECONNECT_ZOTERO": "bash ~/.claude/scripts/zotero-mcp-server.sh start",
+    "ECC_MCP_RECONNECT_WORKSPACE_PERSONAL": "bash ~/.claude/scripts/workspace-mcp-personal-server.sh start"
   },
   "permissions": {
     "allow": [
@@ -19,6 +21,12 @@
       "Bash(pixi info:*)",
       "Bash(pixi install:*)",
       "Bash(pixi run:*)",
+      "Bash(tmux:*)",
+      "Bash(claude:*)",
+      "Bash(mkdir:*)",
+      "Bash(TZ=Asia/Tokyo date:*)",
+      "Bash(~/Documents/Projects/claude-settings/.claude/skills/morning-routine/scripts/launch-task-pane.sh:*)",
+      "Bash(~/Documents/Projects/claude-settings/.claude/skills/morning-routine/scripts/teardown-session.sh:*)",
       "Read(/tmp/*)",
       "Write(/tmp/*)",
       "Edit(/tmp/*)",
@@ -39,7 +47,8 @@
       "mcp__scrapling__open_session",
       "mcp__scrapling__close_session",
       "mcp__scrapling__list_sessions"
-    ]
+    ],
+    "defaultMode": "auto"
   },
   "model": "opus[1m]",
   "hooks": {
@@ -51,6 +60,44 @@
             "type": "command",
             "command": "bash ~/.claude/scripts/zotero-mcp-server.sh start",
             "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "bash ~/.claude/scripts/workspace-mcp-personal-server.sh start",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/scripts/karpathy-reminder.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rtk hook claude"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/scripts/plot-vision-reminder.sh",
+            "timeout": 5
           }
         ]
       }
@@ -61,14 +108,26 @@
     "command": "bun x -y ccstatusline@latest",
     "padding": 0
   },
-  "enabledPlugins": {},
-  "extraKnownMarketplaces": {},
-  "effortLevel": "high",
+  "enabledPlugins": {
+    "learning-output-style@claude-plugins-official": true,
+    "explanatory-output-style@claude-plugins-official": true,
+    "warp@claude-code-warp": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-code-warp": {
+      "source": {
+        "source": "github",
+        "repo": "warpdotdev/claude-code-warp"
+      }
+    }
+  },
   "autoUpdatesChannel": "latest",
-  "voiceEnabled": true,
   "voice": {
     "enabled": true,
     "mode": "hold"
   },
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "editorMode": "vim",
+  "skipAutoPermissionPrompt": true,
+  "voiceEnabled": true
 }
