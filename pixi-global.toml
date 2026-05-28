@@ -209,3 +209,8 @@ exposed = { python = "python", python3 = "python3", ipython = "ipython" , "pytho
 channels = ["conda-forge"]
 dependencies = { yt-dlp = "*" }
 exposed = { yt-dlp = "yt-dlp" }
+
+[envs.tealdeer]
+channels = ["conda-forge"]
+dependencies = { tealdeer = "*" }
+exposed = { tldr = "tldr" }
