@@ -129,5 +129,9 @@
   "skipDangerousModePermissionPrompt": true,
   "editorMode": "vim",
   "skipAutoPermissionPrompt": true,
-  "voiceEnabled": true
+  "voiceEnabled": true,
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  }
 }
