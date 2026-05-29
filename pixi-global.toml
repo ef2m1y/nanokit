@@ -214,3 +214,8 @@ exposed = { yt-dlp = "yt-dlp" }
 channels = ["conda-forge"]
 dependencies = { tealdeer = "*" }
 exposed = { tldr = "tldr" }
+
+[envs.ripgrep]
+channels = ["conda-forge"]
+dependencies = { ripgrep = "*" }
+exposed = { rg = "rg" }
