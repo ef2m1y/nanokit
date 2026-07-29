@@ -1,7 +1,6 @@
 ---
 name: html-report-writing
 description: 人間が読む長めの文章・レポート・ドキュメント・資料を生成するときに使用する。単一の HTML ファイル (+ 必要なら assets/) として出力し、Markdown が 100 行を超えると読まれなくなる問題を sticky TOC・構造化 callout・優先度 pill・数式 (KaTeX)・コードハイライト (Prism)・D2 ダイアグラム・チャート (matplotlib SVG) で解決する。技術分析・応用検討・設計レポート・選択肢比較・サーベイ・議論ログ (Codex 等の第二視点を取り込む review-log 型) など、500 字を超える / 図表を伴う / 改訂を重ねる文書には必ず使用する。"レポート", "ドキュメント", "資料", "サーベイ", "技術レポート", "HTMLレポート", "応用検討", "選択肢比較", "議論ログ", "review log", "Codex レビュー反復" などのトリガーで発動する。
-user-invocable: true
 ---
 
 # HTML レポート作成ガイド
@@ -146,6 +145,7 @@ TL;DR は **本文確定後に最後に書く**。結論を 1-2 文で、`<stron
 - **D2 は `--layout=tala -t 200` を基本** に使う (個人/OSS 無料、商用は要ライセンス)
 - **direction: down** を基本にして aspect 比 < 2:1 を保つ
 - **凡例は HTML figcaption 側に書く** (D2 内 legend は viewBox を壊す)
+- **D2 ノードは saturated fill + 白テキスト + bold + ≥16px** で light/dark 両対応 (pastel fill + 暗色テキストは dark mode browser で読めなくなる、`reference/d2-diagrams.md` 参照)
 - matplotlib は **`transparent=True`** + ニュートラル軸色で light/dark 両対応
 
 ## 作成手順 (汎用フロー)
@@ -157,9 +157,14 @@ TL;DR は **本文確定後に最後に書く**。結論を 1-2 文で、`<stron
 5. **可視化で情報を整理** — 構造は D2、定量は matplotlib SVG を `docs/assets/` に生成
 6. **数式は KaTeX で、コードは `language-XXX` class 付きで** — `reference/math-and-code.md` 参照
 7. **TL;DR を最後に書く** — 結論先出しで上に貼る
-8. **検証:**
-   - ブラウザで開く (D2/matplotlib SVG が assets/ にあるか、KaTeX/Prism が render されるか)
-   - ダーク / ライト両方で色コントラスト OK
+8. **検証 (closing gate — スキップ不可):**
+   - **必ず `visual-verify` スキルを最後に実行する** — headless ブラウザで
+     スクリーンショット (ライト / ダーク両方) を撮り、Read で自分の目で
+     チェックリスト採点する。「コードから推測して OK」は検証ではない。
+     NG が出たら修正 → 再描画 → 再 verify のループを pass まで回す
+   - visual-verify のチェック対象: D2/matplotlib SVG が assets/ から描画
+     されるか、KaTeX/Prism の render、ダーク / ライト両方の色コントラスト、
+     図表のはみ出し・見切れ
    - クリックで SVG 原寸表示が動く
    - `Ctrl+P` で印刷プレビュー → PDF 化に耐える
    - リンク切れがないか

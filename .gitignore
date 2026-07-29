@@ -54,7 +54,6 @@ Temporary Items
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,linux,dotenv
 
-.understand-anything/
 *.log
 .dotter/cache.toml
 .claude/settings.local.json
@@ -62,3 +61,9 @@ Temporary Items
 claude/mcp-servers/*/.pixi/
 claude/external/
 claude/mcp-servers/*/.pixi/
+tools/*/.pixi/
+claude/skills/*/.pixi/
+
+# Python bytecode
+__pycache__/
+*.pyc

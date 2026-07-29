@@ -1,9 +1,11 @@
 {
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "1000000",
+    "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "5",
     "ECC_MCP_RECONNECT_ZOTERO": "bash ~/.claude/scripts/zotero-mcp-server.sh start",
-    "ECC_MCP_RECONNECT_WORKSPACE_PERSONAL": "bash ~/.claude/scripts/workspace-mcp-personal-server.sh start"
+    "ECC_MCP_RECONNECT_WORKSPACE_PERSONAL": "bash ~/.claude/scripts/workspace-mcp-personal-server.sh start",
+    "ECC_MCP_RECONNECT_WORKSPACE_HDT": "bash ~/.claude/scripts/workspace-mcp-hdt-server.sh start",
+    "ECC_MCP_RECONNECT_SCRAPLING": "bash ~/.claude/scripts/scrapling-mcp-server.sh start"
   },
   "permissions": {
     "allow": [
@@ -25,17 +27,13 @@
       "Bash(claude:*)",
       "Bash(mkdir:*)",
       "Bash(TZ=Asia/Tokyo date:*)",
-      "Bash(~/Documents/Projects/claude-settings/.claude/skills/morning-routine/scripts/launch-task-pane.sh:*)",
-      "Bash(~/Documents/Projects/claude-settings/.claude/skills/morning-routine/scripts/teardown-session.sh:*)",
       "Read(/tmp/*)",
-      "Write(/tmp/*)",
       "Edit(/tmp/*)",
       "Bash(rm /tmp*)",
       "Read(**/.claude/settings.json)",
       "Read(**/.claude/settings.local.json)",
       "Edit(**/.claude/settings.json)",
       "Edit(**/.claude/settings.local.json)",
-      "Write(**/.claude/settings.local.json)",
       "WebSearch",
       "WebFetch",
       "mcp__scrapling__get",
@@ -47,6 +45,11 @@
       "mcp__scrapling__open_session",
       "mcp__scrapling__close_session",
       "mcp__scrapling__list_sessions"
+    ],
+    "ask": [
+      "Bash(jl destroy:*)",
+      "Bash(jl filesystem remove:*)",
+      "Bash(jl deploy delete:*)"
     ],
     "defaultMode": "auto"
   },
@@ -64,6 +67,21 @@
           {
             "type": "command",
             "command": "bash ~/.claude/scripts/workspace-mcp-personal-server.sh start",
+            "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "bash ~/.claude/scripts/workspace-mcp-hdt-server.sh start",
+            "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "bash ~/.claude/scripts/scrapling-mcp-server.sh start",
+            "timeout": 20
+          },
+          {
+            "type": "command",
+            "command": "bash ~/.claude/scripts/agent-config-sync-reconnect.sh",
             "timeout": 20
           }
         ]
@@ -92,12 +110,34 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Write|Bash",
+        "matcher": "Write|Edit|MultiEdit|Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/scripts/plot-vision-reminder.sh",
+            "command": "bash ~/.claude/scripts/vision-reminder.sh",
             "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__claude-in-chrome__navigate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/scripts/vision-reminder.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/scripts/memory-extract.sh",
+            "timeout": 10
           }
         ]
       }
@@ -109,9 +149,9 @@
     "padding": 0
   },
   "enabledPlugins": {
-    "learning-output-style@claude-plugins-official": true,
-    "explanatory-output-style@claude-plugins-official": true,
-    "warp@claude-code-warp": true
+    "warp@claude-code-warp": true,
+    "clangd-lsp@claude-plugins-official": false,
+    "codex@openai-codex": true
   },
   "extraKnownMarketplaces": {
     "claude-code-warp": {
@@ -119,17 +159,27 @@
         "source": "github",
         "repo": "warpdotdev/claude-code-warp"
       }
+    },
+    "openai-codex": {
+      "source": {
+        "source": "github",
+        "repo": "openai/codex-plugin-cc"
+      }
     }
   },
+  "outputStyle": "concise-clear",
+  "effortLevel": "xhigh",
   "autoUpdatesChannel": "latest",
+  "tui": "fullscreen",
   "voice": {
     "enabled": true,
     "mode": "hold"
   },
+  "autoMemoryEnabled": true,
   "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
   "editorMode": "vim",
   "skipAutoPermissionPrompt": true,
-  "voiceEnabled": true,
   "attribution": {
     "commit": "",
     "pr": ""

@@ -8,40 +8,28 @@ nvim = { target = "$HOME/.config/nvim", type = "symbolic", recurse = false }
 zshenv = "$HOME/.zshenv"
 zshrc = "$HOME/.zshrc"
 tigrc = "$HOME/.tigrc"
+npmrc = "$HOME/.npmrc"
 "pixi-global.toml" = "$HOME/.pixi/manifests/pixi-global.toml"
 "sheldon.toml" = "$HOME/.config/sheldon/plugins.toml"
 "tmux.conf" = "$HOME/.tmux.conf"
 wezterm = { target = "$HOME/.config/wezterm", type = "symbolic", recurse = false }
 "starship.toml" = "$HOME/.config/starship.toml"
-"claude/settings.json" = "$HOME/.claude/settings.json"
+"uv.toml" = "$HOME/.config/uv/uv.toml"
+"gwq.toml" = "$HOME/.config/gwq/config.toml"
 "claude/CLAUDE.md" = "$HOME/.claude/CLAUDE.md"
 "claude/RTK.md" = "$HOME/.claude/RTK.md"
 "claude/scripts/zotero-mcp-server.sh" = "$HOME/.claude/scripts/zotero-mcp-server.sh"
 "claude/scripts/workspace-mcp-personal-server.sh" = "$HOME/.claude/scripts/workspace-mcp-personal-server.sh"
+"claude/scripts/workspace-mcp-hdt-server.sh" = "$HOME/.claude/scripts/workspace-mcp-hdt-server.sh"
+"claude/scripts/scrapling-mcp-server.sh" = "$HOME/.claude/scripts/scrapling-mcp-server.sh"
 "claude/scripts/karpathy-reminder.sh" = "$HOME/.claude/scripts/karpathy-reminder.sh"
-"claude/scripts/plot-vision-reminder.sh" = "$HOME/.claude/scripts/plot-vision-reminder.sh"
+"claude/scripts/vision-reminder.sh" = "$HOME/.claude/scripts/vision-reminder.sh"
+"claude/scripts/memory-extract.sh" = "$HOME/.claude/scripts/memory-extract.sh"
+"claude/scripts/agent-config-sync-reconnect.sh" = "$HOME/.claude/scripts/agent-config-sync-reconnect.sh"
 "claude/scripts/mmdc" = "$HOME/.pixi/bin/mmdc"
-"claude/skills/git-commits" = { target = "$HOME/.claude/skills/git-commits", type = "symbolic", recurse = false }
-"claude/skills/code-comments" = { target = "$HOME/.claude/skills/code-comments", type = "symbolic", recurse = false }
-"claude/skills/code-review-etiquette" = { target = "$HOME/.claude/skills/code-review-etiquette", type = "symbolic", recurse = false }
-"claude/skills/readme-writing" = { target = "$HOME/.claude/skills/readme-writing", type = "symbolic", recurse = false }
-"claude/skills/ai-code-changes" = { target = "$HOME/.claude/skills/ai-code-changes", type = "symbolic", recurse = false }
-"claude/skills/pixi-env" = { target = "$HOME/.claude/skills/pixi-env", type = "symbolic", recurse = false }
-"claude/skills/clip" = { target = "$HOME/.claude/skills/clip", type = "symbolic", recurse = false }
-"claude/skills/notion-writing" = { target = "$HOME/.claude/skills/notion-writing", type = "symbolic", recurse = false }
-"claude/skills/windows-zip-extract" = { target = "$HOME/.claude/skills/windows-zip-extract", type = "symbolic", recurse = false }
-"claude/skills/cto-briefing" = { target = "$HOME/.claude/skills/cto-briefing", type = "symbolic", recurse = false }
-"claude/skills/html-report-writing" = { target = "$HOME/.claude/skills/html-report-writing", type = "symbolic", recurse = false }
-"claude/skills/codex-review" = { target = "$HOME/.claude/skills/codex-review", type = "symbolic", recurse = false }
-"claude/skills/codex-discuss" = { target = "$HOME/.claude/skills/codex-discuss", type = "symbolic", recurse = false }
-"claude/skills/playwright-cli" = { target = "$HOME/.claude/skills/playwright-cli", type = "symbolic", recurse = false }
-"claude/skills/code-review" = { target = "$HOME/.claude/skills/code-review", type = "symbolic", recurse = false }
-"claude/skills/update-docs" = { target = "$HOME/.claude/skills/update-docs", type = "symbolic", recurse = false }
-"claude/skills/mermaid-diagrams" = { target = "$HOME/.claude/skills/mermaid-diagrams", type = "symbolic", recurse = false }
-"claude/skills/cs-paper-writing" = { target = "$HOME/.claude/skills/cs-paper-writing", type = "symbolic", recurse = false }
-"claude/skills/plan" = { target = "$HOME/.claude/skills/plan", type = "symbolic", recurse = false }
-"claude/skills/karpathy-guidelines" = { target = "$HOME/.claude/skills/karpathy-guidelines", type = "symbolic", recurse = false }
-"claude/skills/lgtm-loop" = { target = "$HOME/.claude/skills/lgtm-loop", type = "symbolic", recurse = false }
+"tools/jarvislabs/jl" = "$HOME/.pixi/bin/jl"
+"claude/agents" = { target = "$HOME/.claude/agents", type = "symbolic", recurse = false }
+"claude/output-styles" = { target = "$HOME/.claude/output-styles", type = "symbolic", recurse = false }
 "claude/ccstatusline/settings.json" = "$HOME/.config/ccstatusline/settings.json"
 
 [default.variables]

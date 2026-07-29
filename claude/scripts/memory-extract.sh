@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+# SessionEnd hook: SILENT background extraction of durable, cross-project user
+# facts into the global personal memory layer (~/.config/claude-memory/personal/).
+#
+# Why this shape: SessionEnd output/exit codes are ignored by Claude Code (no
+# additionalContext, no system-reminder), so nothing shows up in the
+# conversation. The real work is done by a headless `claude -p` spawned DETACHED,
+# which reads the just-ended transcript and writes memory files out of band.
+# This replaces the old visible Stop-hook nudge (memory-extract-reminder.sh).
+#
+# Observability (it is invisible in the chat, so everything is logged):
+#   fire ledger : ~/.claude/debug/memory-extract.log         (one line per SessionEnd)
+#   per-run log : ~/.claude/debug/memory-extract/<ts>_<sid>.log  (the claude -p output)
+#   saved files : ~/.config/claude-memory/personal/*.md  (+ MEMORY.md)
+#
+# Manual checks:
+#   bash memory-extract.sh --now <transcript.jsonl>     # run synchronously, watch it
+#   bash memory-extract.sh --dry-run < payload.json     # wiring only, no spawn
+#   MEMEX_DEST=/tmp/memtest bash memory-extract.sh --now <t>   # write to a temp dir
+#
+# Recursion guard: the spawned `claude -p` is itself a session that fires this
+# same hook; it carries MEMEX_CHILD=1 so the hook early-exits for it.
+#
+# Tunables (env): MEMEX_MODEL (default claude-opus-4-8), MEMEX_EFFORT (default
+#                 xhigh), MEMEX_MIN_LINES (default 12), MEMEX_DEST,
+#                 MEMEX_TIMEOUT_S (default 900).
+
+set -uo pipefail
+
+DEBUG_DIR="$HOME/.claude/debug"
+LEDGER="$DEBUG_DIR/memory-extract.log"
+RUNDIR="$DEBUG_DIR/memory-extract"
+MODEL="${MEMEX_MODEL:-claude-opus-4-8}"
+EFFORT="${MEMEX_EFFORT:-xhigh}"
+MIN_LINES="${MEMEX_MIN_LINES:-12}"
+# Wall-clock kill switch for the detached child. A normal extraction finishes
+# in 2-5 min; without this, a wedged `claude -p` (opus + xhigh, nohup'd) has
+# NO stop condition at all — no timeout, no turn cap, nothing (2026-07-03
+# loop-engineering audit, finding H2). No `timeout` binary on this Mac, so a
+# sleep+kill watchdog is used.
+TIMEOUT_S="${MEMEX_TIMEOUT_S:-900}"
+# NOTE: dest lives OUTSIDE ~/.claude on purpose. Writes under ~/.claude are an
+# approval-gated "sensitive file" path, which a headless background claude -p
+# cannot satisfy (no interactive approval), so saves were silently blocked.
+DEST="${MEMEX_DEST:-$HOME/.config/claude-memory/personal}"
+mkdir -p "$RUNDIR" "$DEST"
+
+ts() { date '+%Y-%m-%d %H:%M:%S'; }
+ledger() { printf '[%s] %s\n' "$(ts)" "$1" >> "$LEDGER"; }
+
+# --- recursion guard: never act inside the extractor's own child session ---
+if [ -n "${MEMEX_CHILD:-}" ]; then
+  ledger "SKIP child session (MEMEX_CHILD set)"
+  exit 0
+fi
+
+mode="hook"
+case "${1:-}" in
+  --now)     mode="now"; shift ;;
+  --dry-run) mode="dry"; shift ;;
+esac
+
+# --- resolve transcript_path / session_id / reason ---
+transcript=""; session=""; reason=""
+if [ "$mode" = "now" ] && [ -n "${1:-}" ]; then
+  transcript="$1"; session="manual-$(date +%s)"; reason="manual"
+else
+  payload="$(cat 2>/dev/null || true)"
+  if [ -n "$payload" ] && command -v jq >/dev/null 2>&1; then
+    transcript="$(printf '%s' "$payload" | jq -r '.transcript_path // empty')"
+    session="$(printf '%s' "$payload" | jq -r '.session_id // empty')"
+    reason="$(printf '%s' "$payload" | jq -r '.reason // empty')"
+  fi
+  [ -z "$transcript" ] && transcript="${1:-}"
+fi
+session="${session:-unknown}"; reason="${reason:-unknown}"
+
+# A "resume" SessionEnd is transient (the session continues); skip it.
+if [ "$reason" = "resume" ]; then
+  ledger "SKIP session=$session reason=resume (transient)"
+  exit 0
+fi
+
+# --- gating: need a real, substantive transcript ---
+if [ -z "$transcript" ] || [ ! -f "$transcript" ]; then
+  ledger "SKIP session=$session reason=$reason (no transcript: ${transcript:-none})"
+  exit 0
+fi
+lines="$(wc -l < "$transcript" 2>/dev/null | tr -d ' ')"
+if [ "${lines:-0}" -lt "$MIN_LINES" ]; then
+  ledger "SKIP session=$session reason=$reason (transcript $lines lines < $MIN_LINES)"
+  exit 0
+fi
+
+runlog="$RUNDIR/$(date +%Y%m%d_%H%M%S)_${session}.log"
+
+PROMPT="$(cat <<EOF
+You are a silent background memory extractor for Claude Code, building a RICH,
+COMPREHENSIVE personalization profile of the user across all projects. Read the
+session transcript at: $transcript
+
+From it, capture any DURABLE, cross-project facts that help personalize how the
+assistant works WITH and FOR this specific person. Collect BROADLY — not just
+work habits. Look for, among others:
+  - thinking and reasoning style (how they decompose problems, what they value
+    in an answer, what convinces or annoys them)
+  - communication and explanation preferences (tone, format, language, depth)
+  - hobbies, interests, and side pursuits
+  - aesthetic tastes, likes and dislikes
+  - values, priorities and principles (what they optimize for; what they reject)
+  - domain expertise, background and skills
+  - tools, workflow and environment preferences
+  - goals, direction and long-term aims (cross-cutting, not one project of tasks)
+  - people, collaborators and team structure they work within
+  - corrections or guidance on how the assistant should behave
+
+For each genuinely NEW fact (not already in $DEST/MEMORY.md), create a one-fact
+file under $DEST/ — kebab-case slug, frontmatter with name, description, and
+metadata.type (one of: user, feedback, reference; "user" is broad and covers
+identity, interests, tastes, values, and thinking style) — following the
+conventions already used in that directory, and add one pointer line to
+$DEST/MEMORY.md.
+
+Rules:
+  - Read $DEST/MEMORY.md FIRST; skip anything already recorded. If you have a
+    real refinement to an existing fact, update that file instead of duplicating.
+  - NEVER store secrets or credentials (passwords, API keys, tokens, private
+    keys, OTP or 2FA codes). This is the ONE hard exclusion — everything else,
+    including sensitive personal topics, is in scope when the user volunteers it.
+  - Skip project-specific facts (those belong to per-project memory, not here).
+  - Skip pure one-off task trivia; keep only what will still be true and useful
+    weeks from now.
+  - One clear, specific fact per file; prefer concrete over vague.
+  - Do NOT edit any CLAUDE.md.
+Finish with one summary line: either "SAVED: <slugs>" or "NOTHING NEW".
+EOF
+)"
+
+extract() {
+  echo "=== memory-extract start $(ts) session=$session reason=$reason dest=$DEST ==="
+  echo "=== transcript=$transcript ($lines lines) model=$MODEL timeout=${TIMEOUT_S}s ==="
+  # set -m: each background job gets its own process group, so the watchdog
+  # can kill claude AND its node children (kill -- -pgid). Killing only the
+  # direct child leaves grandchildren holding the stdout pipe.
+  set -m
+  MEMEX_CHILD=1 claude -p "$PROMPT" \
+    --model "$MODEL" \
+    --effort "$EFFORT" \
+    --permission-mode acceptEdits \
+    --allowedTools "Read,Write,Edit,Glob,Grep" </dev/null &
+  local cpid=$!
+  ( sleep "$TIMEOUT_S" && kill -- -"$cpid" 2>/dev/null \
+      && echo "=== memory-extract KILLED after ${TIMEOUT_S}s timeout $(ts) ===" ) &
+  local wpid=$!
+  wait "$cpid" 2>/dev/null; local rc=$?
+  kill -- -"$wpid" 2>/dev/null
+  echo "=== memory-extract exit $rc $(ts) ==="
+}
+
+case "$mode" in
+  dry)
+    ledger "DRYRUN session=$session reason=$reason ($lines lines) model=$MODEL dest=$DEST -> $runlog"
+    echo "[dry-run] transcript=$transcript ($lines lines)"
+    echo "[dry-run] would spawn: MEMEX_CHILD=1 claude -p <prompt> --model $MODEL --effort $EFFORT --permission-mode acceptEdits"
+    echo "[dry-run] runlog would be: $runlog"
+    ;;
+  now)
+    ledger "NOW session=$session reason=$reason ($lines lines) -> $runlog (foreground)"
+    extract 2>&1 | tee "$runlog"
+    ;;
+  hook)
+    ledger "FIRED session=$session reason=$reason ($lines lines) -> spawned log=$runlog"
+    # detached + nohup so it outlives the hook and the Claude session.
+    # Positional args to the inner shell: 1=transcript 2=session 3=reason
+    # 4=model 5=prompt 6=effort 7=timeout_s  (avoids any function/quote
+    # serialization). A sleep+kill watchdog bounds the child: without it a
+    # wedged claude -p ran forever (audit finding H2).
+    nohup bash -c '
+      echo "=== memory-extract start $(date "+%F %T") session=$2 reason=$3 ==="
+      echo "=== transcript=$1 model=$4 effort=$6 timeout=${7}s ==="
+      set -m
+      MEMEX_CHILD=1 claude -p "$5" --model "$4" --effort "$6" --permission-mode acceptEdits --allowedTools "Read,Write,Edit,Glob,Grep" </dev/null &
+      cpid=$!
+      ( sleep "$7" && kill -- -"$cpid" 2>/dev/null \
+          && echo "=== memory-extract KILLED after ${7}s timeout $(date "+%F %T") ===" ) &
+      wpid=$!
+      wait "$cpid" 2>/dev/null; rc=$?
+      kill -- -"$wpid" 2>/dev/null
+      echo "=== memory-extract exit $rc $(date "+%F %T") ==="
+    ' _ "$transcript" "$session" "$reason" "$MODEL" "$PROMPT" "$EFFORT" "$TIMEOUT_S" >> "$runlog" 2>&1 &
+    disown 2>/dev/null || true
+    ;;
+esac
+exit 0

@@ -177,7 +177,6 @@ See [Starship Presets](https://starship.rs/presets/) for more customization opti
 
 The following tools are available through [pixi-global.toml](pixi-global.toml):
 
-
 |           | Tool          | Description                                      | Exposed Command                                                                                                    | GitHub                                                                |
 | --------- | ------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
 | 🔀        | **git**       | Version control system                           | `git`, `git-cvsserver`, `git-receive-pack`, `git-shell`, `git-upload-archive`, `git-upload-pack`, `gitk`, `scalar` | [git/git](https://github.com/git/git)                                 |
@@ -194,6 +193,7 @@ The following tools are available through [pixi-global.toml](pixi-global.toml):
 | 🔎        | **fzf**       | Fuzzy finder                                     | `fzf`                                                                                                              | [junegunn/fzf](https://github.com/junegunn/fzf)                       |
 | 📁        | **tree**      | Directory tree display                           | `tree`                                                                                                             | [Old-Man-Programmer/tree](https://github.com/Old-Man-Programmer/tree) |
 | 📁        | **go-ghq**    | Git repository manager                           | `ghq`                                                                                                              | [x-motemen/ghq](https://github.com/x-motemen/ghq)                     |
+| 🌲        | **gwq**       | Git worktree manager                             | `gwq`                                                                                                              | [d-kuro/gwq](https://github.com/d-kuro/gwq)                           |
 | 🌀        | **zoxide**    | Smart directory jumper                           | `zoxide`                                                                                                           | [ajeetdsouza/zoxide](https://github.com/ajeetdsouza/zoxide)           |
 | 🛠️       | **make**      | Build automation tool                            | `make`                                                                                                             | [mirror/make](https://github.com/mirror/make)                         |
 | 📋        | **xsel**      | X11 clipboard manipulation                       | `xsel`                                                                                                             | [kfish/xsel](https://github.com/kfish/xsel)                           |
@@ -203,7 +203,7 @@ The following tools are available through [pixi-global.toml](pixi-global.toml):
 | 💽        | **diskonaut** | Disk space navigator                             | `diskonaut`                                                                                                        | [imsnif/diskonaut](https://github.com/imsnif/diskonaut)               |
 | 🦇        | **bat**       | Better cat with syntax highlighting              | `bat`                                                                                                              | [sharkdp/bat](https://github.com/sharkdp/bat)                         |
 | 📂        | **lsdeluxe**  | Modern ls replacement                            | `lsd`                                                                                                              | [lsd-rs/lsd](https://github.com/lsd-rs/lsd)                           |
-| ⚙️        | **nodejs**    | Node.js runtime                                  | `node`, `npm`, `npx`                                                                                               | [nodejs/node](https://github.com/nodejs/node)                         |
+| ⬢        | **fnm**       | Fast Node Manager (Node/npm/npx via `fnm env`)   | `fnm`                                                                                                              | [Schniz/fnm](https://github.com/Schniz/fnm)                           |
 | ⚙️        | **jq**        | Command-line JSON processor                      | `jq`                                                                                                               | [jqlang/jq](https://github.com/jqlang/jq)                             |
 | 🌍        | **xh**        | Friendly and fast tool for sending HTTP requests | `xh`                                                                                                               | [ducaale/xh](https://github.com/ducaale/xh)                           |
 | ☁️        | **rclone**    | rsync for cloud storage                          | `rclone`                                                                                                           | [rclone/rclone](https://github.com/rclone/rclone)                     |
@@ -217,7 +217,6 @@ The following tools are available through [pixi-global.toml](pixi-global.toml):
 | 👀        | **watch**     | Execute a program periodically                   | `watch`                                                                                                            | [procps-ng/procps](https://gitlab.com/procps-ng/procps)               |
 | 📹        | **t-rec**     | Terminal recorder (animated GIFs)                | `t-rec`                                                                                                            | [sassman/t-rec-rs](https://github.com/sassman/t-rec-rs)               |
 | 🖼️        | **imagemagick** | Image manipulation toolkit                     | `magick`, `convert`, `mogrify`, `identify`, `composite`, …                                                         | [ImageMagick/ImageMagick](https://github.com/ImageMagick/ImageMagick) |
-
 
 Add your favorite tools with:
 
@@ -254,7 +253,7 @@ Manage symlinks for dotfiles by editing [.dotter/global.toml](./dotter/global.to
 
 For detailed configuration options, see the [dotter documentation](https://github.com/SuperCuber/dotter/wiki).
 
-### 🚀 ghq + zoxide = ❤️
+### 🚀 ghq + 🌲 gwq + 🌀 zoxide = ❤️
 
 The combination of [ghq](https://github.com/x-motemen/ghq) and [zoxide](https://github.com/ajeetdsouza/zoxide) creates a magical workflow for repository management:
 
@@ -273,7 +272,7 @@ ghq get https://github.com/user/project
 # Creates: ~/ghq/github.com/user/project
 ```
 
-#### 🧭 Smart Navigation with zoxide
+#### 🌀 Smart Navigation with zoxide
 
 Once you `cd` into any directory, [zoxide](https://github.com/ajeetdsouza/zoxide) remembers that location. You can then use:
 
@@ -283,6 +282,24 @@ z <partial-name>  # Jump to directory matching the pattern
 ```
 
 No more `cd ../../../project` - just `zi` and you're there! 🎯
+
+#### 🌲 Worktree Management with gwq
+
+[gwq](https://github.com/d-kuro/gwq) is to **branches** what `ghq` is to **repositories** — a structured, ghq-style manager for `git worktree`. Instead of juggling `git worktree add ../some-path` by hand, gwq lays worktrees out under `$GHQ_ROOT` using the naming template configured in [`gwq.toml`](gwq.toml):
+
+```
+$GHQ_ROOT/github.com/{owner}/{repo}.{branch}
+```
+
+Common commands:
+
+```bash
+gwq add <branch>     # create a worktree for <branch> (auto-cd into it)
+gwq list             # list avaialable worktrees
+gwq remove           # prune a worktree
+```
+
+With `auto_cd_on_add = true` (already set in [`gwq.toml`](gwq.toml)) and the shell integration sourced in [`zshrc`](zshrc) (`source <(gwq completion zsh)`), `gwq add` drops you straight inside the new worktree, 🌀 zoxide quietly memorizes the path along the way. So next time, just `zi` and you're back in the worktree you wanted. 🎯
 
 ### 🖥️ Tmux Key Bindings
 
@@ -344,12 +361,12 @@ Basic commands to get started:
 - `:Lazy` - Plugin manager interface
 - `Ctrl+P` - Fuzzy file finder
 
-## 🤖 Claude Code Configuration (Optional)
+## 🤖 Claude Code / Codex shared configuration
 
-nanokit can manage [Claude Code](https://claude.ai/code) global configuration (`~/.claude/settings.json`, `~/.claude/CLAUDE.md`, custom scripts) via dotter symlinks.
+nanokit manages Claude Code's tool-specific settings and the global instructions/skills shared with Codex. Common content has one source; client-specific adapters remain in `claude-settings`.
 
 > [!NOTE]
-> Claude Code itself is installed via npm, not pixi. Only the **configuration files** are managed by nanokit.
+> Claude Code and Codex themselves are installed separately. nanokit manages their portable configuration and shared files.
 
 ### Setup
 
@@ -359,11 +376,22 @@ curl -fsSL https://claude.ai/install.sh | bash
 
 # Setup configuration and plugins
 ./nanokit claude-setup
+
+# Preview or re-apply only shared agent configuration
+./nanokit agent-config-sync --diff
+./nanokit agent-config-sync
 ```
 
 This will:
-1. Symlink configuration files from `nanokit/claude/` to `~/.claude/`
-2. Register plugin marketplaces and install plugins
+1. Symlink Claude-specific settings from `nanokit/claude/` to `~/.claude/` with dotter.
+2. Link `claude/CLAUDE.md` to `~/.codex/AGENTS.md`.
+3. Link every `claude/skills/*/SKILL.md` directory to both `~/.claude/skills/` and `~/.agents/skills/`.
+4. Upsert portable keys from `codex/config.toml` into the stateful `~/.codex/config.toml` without touching host-specific sections.
+5. Link nanokit-managed Codex command rules from `codex/rules/*.rules` into `~/.codex/rules/`.
+6. Register client-safe HTTP MCPs (`scrapling`, `zotero`, `deepwiki`) in both CLIs.
+7. Register Claude Code plugin marketplaces and plugins.
+
+Client-scoped MCPs such as `workspace-hdt` / `workspace-personal` are intentionally not added to Codex user scope; `claude-settings` selects them per project so organization credentials do not leak across clients.
 
 ### Plugins
 
@@ -373,69 +401,37 @@ This will:
 
 ```bash
 claude plugin marketplace add affaan-m/everything-claude-code
-claude plugin marketplace add Lum1104/Understand-Anything
-claude plugin marketplace add DenDen047/claude-scientific-skills
 ```
 
 **Step 2: プラグインのインストール**
 
 ```bash
 claude plugin install everything-claude-code@everything-claude-code
-claude plugin install understand-anything@understand-anything
-claude plugin install scientific-skills@claude-scientific-skills
 ```
 
 | Plugin | Marketplace (GitHub) | Description |
 |--------|---------------------|-------------|
 | **everything-claude-code** | [affaan-m/everything-claude-code](https://github.com/affaan-m/everything-claude-code) | Agent, skill, rule の包括的コレクション |
-| **understand-anything** | [Lum1104/Understand-Anything](https://github.com/Lum1104/Understand-Anything) | コードベースの知識グラフ生成・探索 |
-| **scientific-skills** | [DenDen047/claude-scientific-skills](https://github.com/DenDen047/claude-scientific-skills) | 科学計算スキル (データ分析, 可視化, LaTeX 等) |
 
 ### What is managed
 
 | File | Description |
 |------|-------------|
 | `claude/settings.json` | Global settings (hooks, env vars, plugins, statusLine) |
-| `claude/CLAUDE.md` | Global instructions |
+| `claude/CLAUDE.md` | Global instructions for Claude Code and Codex |
+| `claude/skills/*` | Shared skill sources for `~/.claude/skills` and `~/.agents/skills` |
+| `codex/config.toml` | Portable Codex top-level settings |
+| `codex/rules/*.rules` | Global Codex command rules linked into `~/.codex/rules/` |
+| `codex/sync-config.py` | Safe, idempotent config/instruction/skill/rule synchronizer |
 | `claude/scripts/zotero-mcp-server.sh` | Zotero MCP server lifecycle script |
 
-Plugin-managed files (`agents/`, `skills/`, `commands/`, `rules/`, `hooks/`) and runtime data are **not** tracked -- they are managed by Claude Code and its plugins.
+Plugin-managed files and runtime data remain outside this synchronization. A non-symlink path or a foreign symlink with the same skill name is treated as a collision and is never overwritten.
 
 ### Post-setup
 
 Configure machine-specific settings manually:
 - MCP servers: `~/.claude/mcp-configs/mcp-servers.json`
 - Local overrides: `~/.claude/settings.local.json`
-
-## 🌙 ARIS - Auto-Research-In-Sleep (Optional)
-
-[ARIS](https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep) は、自律的な ML リサーチ用の Markdown-only スキル集（論文レビューループ、アイデア探索、実験自動化など 50+ 個）です。Claude plugin marketplace には対応していないため、nanokit では **optional なサブコマンド** として管理します。
-
-> [!NOTE]
-> ARIS は `./nanokit install` では導入されません。必要なときだけ明示的に `aris-install` を叩いてください。
-
-### Install
-
-```bash
-./nanokit aris-install
-```
-
-これにより以下が行われます:
-
-1. `nanokit/claude/external/aris/` に ARIS リポジトリを shallow clone（`.gitignore` 済み）
-2. `skills/*/` の各スキルを `~/.claude/skills/<skill-name>` へ symlink
-3. 既存の同名ファイル（非 symlink）があれば衝突回避のためスキップ
-
-clone 先を nanokit リポジトリ配下に置くことで、どこから持ってきた symlink なのかを後から辿りやすくしています。dotter の管轄外なので、`claude/skills/*` の固定 symlink とは独立に追加・削除できます。
-
-### Update / Uninstall
-
-```bash
-./nanokit aris-update      # git pull + symlink 再リンク
-./nanokit aris-uninstall   # ARIS symlink と clone を削除
-```
-
-`aris-uninstall` は `~/.claude/skills/` 配下のうち **`nanokit/claude/external/aris/` を指している symlink のみ** を削除するため、他のスキルには影響しません。
 
 ## 📚 Zotero MCP (Optional)
 
@@ -485,6 +481,28 @@ bash ~/.claude/scripts/zotero-mcp-server.sh stop
 bash ~/.claude/scripts/zotero-mcp-server.sh start
 tail -f ~/.claude/debug/zotero-mcp.log
 ```
+
+## 🔐 Supply Chain Security (Cooldown)
+
+To reduce the risk of installing recently-published (and potentially compromised) packages, nanokit ships **release-age cooldown** configs for `npm` and `uv`, managed by dotter.
+
+A 7-day cooldown blocks the majority of real-world supply chain incidents, since compromised packages are typically caught and pulled within hours or days. See [Package Managers Need to Cool Down](https://simonwillison.net/2026/mar/24/package-managers-need-to-cool-down/) and [Dependency Cooldowns](https://cooldowns.dev/).
+
+| Tool | Config file | Setting | Min version |
+|------|-------------|---------|-------------|
+| npm | [`npmrc`](npmrc) → `$HOME/.npmrc` | `min-release-age=7` (days) | `npm v11.10.0+` |
+| uv | [`uv.toml`](uv.toml) → `$HOME/.config/uv/uv.toml` | `exclude-newer = "7 days"` | `uv 0.11.2+` |
+
+### ⚠️ Pixi
+
+Pixi's `exclude-newer` is currently [**workspace-only**](https://github.com/prefix-dev/pixi/issues/5810) — it is not available in user-level `~/.pixi/config.toml` ([config reference](https://pixi.prefix.dev/latest/reference/pixi_configuration/)). Add it manually to each project's `pixi.toml` | `pyproject.toml`:
+
+```toml
+[workspace]
+exclude-newer = "7d"  # requires pixi v0.67.0+
+```
+
+This applies to both conda and PyPI packages within that workspace. For `pixi global` (i.e. [`pixi-global.toml`](pixi-global.toml)), cooldown is not yet supported upstream.
 
 ## 🧪 Try nanokit in your OS
 

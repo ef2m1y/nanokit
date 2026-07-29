@@ -4,9 +4,6 @@ description: >
   設計・アーキテクチャの壁打ちを Codex MCP (GPT) と行う。
   実装前の方針検討、トレードオフ分析、API 設計の相談に使う。
   "codex discuss", "GPTと相談", "壁打ち", "設計を議論" などで呼び出す。
-user-invocable: true
-argument-hint: "[topic or question]"
-allowed-tools: Bash(*), Read, Grep, Glob, mcp__codex__codex, mcp__codex__codex-reply
 ---
 
 # Codex Discuss: 設計の壁打ち
@@ -16,16 +13,11 @@ Claude の提案をぶつけて批判をもらう、または白紙から選択�
 
 ## Context: $ARGUMENTS
 
-## 定数
+## モデル設定
 
-- MODEL = `gpt-5.5`
-- REASONING_EFFORT = `xhigh`
-
-すべての `mcp__codex__codex` / `mcp__codex__codex-reply` 呼び出しに以下を付与する:
-
-```
-config: {"model": "gpt-5.5", "model_reasoning_effort": "xhigh"}
-```
+モデルと reasoning effort は **`~/.codex/config.toml` の値を継承する** (現状 `model = gpt-5.6-sol` / `model_reasoning_effort = xhigh`)。
+`mcp__codex__codex` / `mcp__codex__codex-reply` 呼び出しで `model` / `config` は **指定しない** こと。
+Codex の最高モデルを切り替えたいときは config.toml の 1 箇所だけを更新すればよい (単一ソース)。
 
 ## 前提
 
@@ -50,7 +42,6 @@ config: {"model": "gpt-5.5", "model_reasoning_effort": "xhigh"}
 
 ```
 mcp__codex__codex:
-  config: {"model": "gpt-5.5", "model_reasoning_effort": "xhigh"}
   prompt: |
     あなたはシニアソフトウェアエンジニアです。
     以下の設計課題について議論してください。
@@ -89,7 +80,6 @@ Codex の応答を受けて、Claude が以下のいずれかを行う:
 ```
 mcp__codex__codex-reply:
   threadId: [Round 1 の threadId]
-  config: {"model": "gpt-5.5", "model_reasoning_effort": "xhigh"}
   prompt: |
     [指摘 N] について反論があります。
 

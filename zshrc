@@ -7,6 +7,12 @@ fi
 # 🔧 Initialize completion system
 autoload -Uz compinit && compinit
 
+# 📜 History
+export HISTFILE="$HOME/.zsh_history"
+export HISTSIZE=10000
+export SAVEHIST=10000
+setopt SHARE_HISTORY HIST_IGNORE_DUPS HIST_IGNORE_SPACE
+
 # 👾 For shell tools like Claude
 export PATH="$HOME/.local/bin:$PATH"
 export PATH="/usr/local/bin:$PATH"
@@ -15,6 +21,13 @@ export PATH="$HOME/.bun/bin:$PATH"
 # 🪄 Pixi
 export PATH="$HOME/.pixi/bin:$PATH"
 eval "$(pixi completion --shell zsh)"
+
+# ⬢ fnm (Node version manager; the fnm binary itself is pixi-managed via pixi-global.toml)
+# Must come after ~/.pixi/bin is on PATH so the `fnm` shim resolves.
+# --use-on-cd auto-switches Node when entering a dir with .node-version / .nvmrc.
+if command -v fnm &> /dev/null; then
+    eval "$(fnm env --use-on-cd)"
+fi
 
 # 🎩 Zsh Plugin Manager
 # 2>/dev/null: suppress starship's "failed to load module: zsh/mathfunc"
@@ -53,6 +66,11 @@ base16_gruvbox-dark-hard
 # 🌀 zoxide
 eval "$(zoxide init zsh)"
 
+# 📁 root directory for ghq ($GHQ_ROOT/github.com/$owner/$repo)
+export GHQ_ROOT="$HOME/ghq"
+# 🌳 gwq
+source <(gwq completion zsh)
+
 # 📝 editor
 export EDITOR="nvim"
 alias vi="nvim"
@@ -80,3 +98,5 @@ export WEBHOOK_URL=
 # comfy-env
 # source "$HOME/.comfy-env-profile"
 
+# ⏱️ ActivityWatch ターミナル・ウォッチャー (cwd/リポジトリを passive 記録)
+source "$HOME/nanokit/zsh/aw-terminal-watcher.zsh"

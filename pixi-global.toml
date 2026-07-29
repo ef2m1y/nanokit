@@ -105,10 +105,14 @@ channels = ["conda-forge"]
 dependencies = { bat = "*" }
 exposed = { bat = "bat" }
 
-[envs.nodejs]
+# Node itself is NOT managed by pixi — fnm owns Node version management so that
+# per-project .node-version files can switch versions. Only the fnm binary is
+# pixi-managed here; `eval "$(fnm env --use-on-cd)"` in zshrc puts the active
+# Node's node/npm/npx on PATH. Set a default once with `fnm install --lts && fnm default lts-latest`.
+[envs.fnm]
 channels = ["conda-forge"]
-dependencies = { nodejs = "*" }
-exposed = { node = "node", npm = "npm", npx = "npx" }
+dependencies = { fnm = "*" }
+exposed = { fnm = "fnm" }
 
 [envs.dotter-rs]
 channels = ["conda-forge"]
@@ -202,13 +206,68 @@ exposed = { rtk = "rtk" }
 
 [envs.python]
 channels = ["conda-forge"]
-dependencies = { python = "*", numpy = "*", scipy = "*", pillow = "*", matplotlib = "*", pandas = "*", ipython = "*" }
-exposed = { python = "python", python3 = "python3", ipython = "ipython" , "python3.14" = "python3.14" }
+dependencies = { python = "*", numpy = "*", scipy = "*", pillow = "*", matplotlib = "*", pandas = "*", ipython = "*" , beautifulsoup4 = "*" , trimesh = "*", loguru = "*", scikit-learn = "*", pypdf = "*", pdfplumber = "*", pdf2image = "*", reportlab = "*" }
+exposed = { python = "python" }
 
 [envs.yt-dlp]
 channels = ["conda-forge"]
 dependencies = { yt-dlp = "*" }
 exposed = { yt-dlp = "yt-dlp" }
+
+[envs.vhs]
+channels = ["conda-forge"]
+dependencies = { vhs = "*" }
+exposed = { vhs = "vhs" }
+
+[envs.poppler]
+channels = ["conda-forge"]
+dependencies = { poppler = "*" }
+exposed = { pdfattach = "pdfattach", pdfdetach = "pdfdetach", pdffonts = "pdffonts", pdfimages = "pdfimages", pdfinfo = "pdfinfo", pdfseparate = "pdfseparate", pdfsig = "pdfsig", pdftocairo = "pdftocairo", pdftohtml = "pdftohtml", pdftoppm = "pdftoppm", pdftops = "pdftops", pdftotext = "pdftotext", pdfunite = "pdfunite" }
+
+[envs.d2]
+channels = ["conda-forge"]
+dependencies = { d2 = "*" }
+exposed = { d2 = "d2" }
+
+[envs.colmap]
+channels = ["conda-forge"]
+dependencies = { colmap = "*" }
+exposed = { colmap = "colmap" }
+
+[envs.trimesh]
+channels = ["conda-forge"]
+dependencies = { trimesh = "*" }
+exposed = { trimesh = "trimesh" }
+
+[envs.loguru]
+channels = ["conda-forge"]
+dependencies = { loguru = "*" }
+
+[envs.jsonschema]
+channels = ["conda-forge"]
+dependencies = { jsonschema = "*" }
+exposed = { jsonschema = "jsonschema" }
+
+[envs.check-jsonschema]
+channels = ["conda-forge"]
+dependencies = { check-jsonschema = "*" }
+exposed = { check-jsonschema = "check-jsonschema" }
+
+# `huggingface-cli` is deprecated upstream; the CLI is now `hf` (huggingface_hub >= 1.x).
+[envs.huggingface_hub]
+channels = ["conda-forge"]
+dependencies = { huggingface_hub = "*" }
+exposed = { hf = "hf" }
+
+[envs.gwq]
+channels = ["conda-forge"]
+dependencies = { gwq = "*" }
+exposed = { gwq = "gwq" }
+
+[envs.rerun-sdk]
+channels = ["conda-forge"]
+dependencies = { rerun-sdk = "*" }
+exposed = { ensure-pyo3-build-cfg = "ensure-pyo3-build-cfg", ensure-rerun-env = "ensure-rerun-env", ensure-uv-shims = "ensure-uv-shims", rerun = "rerun", uv-shim = "uv-shim", uvpy-shim = "uvpy-shim" }
 
 [envs.tealdeer]
 channels = ["conda-forge"]
@@ -219,3 +278,8 @@ exposed = { tldr = "tldr" }
 channels = ["conda-forge"]
 dependencies = { ripgrep = "*" }
 exposed = { rg = "rg" }
+
+# The JarvisLabs CLI (`jl`) is deliberately NOT a pixi-global env: it ships only on
+# PyPI, and pixi global takes conda packages only (prefix-dev/pixi#2261 is still open).
+# It lives in the pixi project at tools/jarvislabs/ and reaches PATH through the
+# dotter-managed shim ~/.pixi/bin/jl. Same pattern as mmdc. Auth: `jl setup`.

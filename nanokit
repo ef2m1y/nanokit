@@ -68,9 +68,6 @@ show_help() {
     echo -e "${CYAN}Commands:${NC}"
     echo "  install         🚀 Install and setup nanokit environment"
     echo "  claude-setup    🤖 Setup Claude Code configuration and plugins"
-    echo "  aris-install    🌙 Install ARIS research skills into ~/.claude/skills (optional)"
-    echo "  aris-update     🔄 Update ARIS skills to the latest version"
-    echo "  aris-uninstall  🧹 Remove ARIS skills and clone"
     echo "  ecc-install     🔧 Install ECC (Everything Claude Code) skills (optional)"
     echo "  ecc-update      🔄 Update ECC skills to the latest version"
     echo "  ecc-uninstall   🧹 Remove ECC skills and clone"
@@ -80,6 +77,11 @@ show_help() {
     echo "  codex-install   🧠 Install OpenAI Codex CLI via npm (optional)"
     echo "  codex-update    🔄 Update Codex CLI to the latest version"
     echo "  codex-uninstall 🧹 Remove Codex CLI"
+    echo "  agent-config-sync ⚙️  Sync shared instructions, skills, and portable Codex settings (--diff to preview)"
+    echo "  codex-config-sync ⚙️  Backward-compatible alias for agent-config-sync"
+    echo "  gemini-install   ✨ Install Google Gemini CLI via npm (optional)"
+    echo "  gemini-update    🔄 Update Gemini CLI to the latest version"
+    echo "  gemini-uninstall 🧹 Remove Gemini CLI"
     echo "  zotero-mcp-install    📚 Install zotero-mcp pixi env and register Zotero Web API credentials"
     echo "  zotero-mcp-update     🔄 Update zotero-mcp to the latest version"
     echo "  zotero-mcp-uninstall  🧹 Remove zotero-mcp env and credentials"
@@ -112,6 +114,54 @@ link_wezterm_cli() {
     mkdir -p "$HOME/.local/bin"
     ln -sfn "$app" "$dst"
     print_success "Linked WezTerm CLI: $dst -> $app"
+}
+
+# Register one safe shared HTTP MCP in every installed local agent client.
+# Client-scoped services (for example workspace-hdt/personal) must NOT use this
+# helper because Codex has one user-level config across all client folders.
+register_shared_http_mcp() {
+    local name="$1"
+    local url="$2"
+    local diff_only="${3:-false}"
+    local current=""
+
+    if command -v claude &> /dev/null; then
+        current="$(claude mcp get "$name" 2>/dev/null || true)"
+        if [[ "$current" == *"URL: $url"* ]]; then
+            [[ "$diff_only" == true ]] || print_info "Claude MCP '$name' already points to $url"
+        elif [[ "$diff_only" == true ]]; then
+            echo "MCP DIFF: Claude '$name' -> $url"
+        else
+            if [[ -n "$current" ]]; then
+                claude mcp remove "$name" -s user >/dev/null
+            fi
+            claude mcp add --transport http -s user "$name" "$url" >/dev/null
+            print_success "Claude MCP '$name' -> $url"
+        fi
+    fi
+
+    if command -v codex &> /dev/null; then
+        current="$(codex mcp get "$name" 2>/dev/null || true)"
+        if [[ "$current" == *"url: $url"* ]]; then
+            [[ "$diff_only" == true ]] || print_info "Codex MCP '$name' already points to $url"
+        elif [[ "$diff_only" == true ]]; then
+            echo "MCP DIFF: Codex '$name' -> $url"
+        else
+            if [[ -n "$current" ]]; then
+                codex mcp remove "$name" >/dev/null
+            fi
+            codex mcp add "$name" --url "$url" >/dev/null
+            print_success "Codex MCP '$name' -> $url"
+        fi
+    fi
+}
+
+sync_shared_http_mcps() {
+    local diff_only="${1:-false}"
+    print_step "Syncing client-safe shared HTTP MCP registrations..."
+    register_shared_http_mcp scrapling "http://127.0.0.1:${SCRAPLING_MCP_PORT:-8323}/mcp" "$diff_only"
+    register_shared_http_mcp zotero "http://127.0.0.1:${ZOTERO_MCP_PORT:-8321}/mcp" "$diff_only"
+    register_shared_http_mcp deepwiki "https://mcp.deepwiki.com/mcp" "$diff_only"
 }
 
 # Install nanokit
@@ -242,6 +292,10 @@ claude_setup() {
     print_success "Config symlinks deployed"
     echo ""
 
+    # Share nanokit's instructions and skills with both Claude Code and Codex.
+    agent_config_sync || print_warning "agent-config-sync reported unsynced items (see the ⚠️ list above)"
+    echo ""
+
     # Setup Scrapling MCP server
     print_step "Setting up Scrapling MCP server..."
     local scrapling_dir="$NANOKIT_ROOT/claude/mcp-servers/scrapling"
@@ -252,19 +306,9 @@ claude_setup() {
         pixi run --manifest-path "$scrapling_dir/pixi.toml" install-browsers 2>/dev/null && \
             print_success "Scrapling browser dependencies installed" || \
             print_warning "Scrapling browser install failed (non-critical, basic scraping still works)"
-        claude mcp add -s user scrapling -- pixi run --manifest-path "$scrapling_dir/pixi.toml" mcp 2>/dev/null && \
-            print_success "Scrapling MCP server registered" || \
-            print_warning "Scrapling MCP registration failed"
     else
         print_warning "Scrapling pixi.toml not found at $scrapling_dir"
     fi
-    echo ""
-
-    # Setup DeepWiki MCP server (remote HTTP, no local install needed)
-    print_step "Setting up DeepWiki MCP server..."
-    claude mcp add -s user deepwiki --transport http -- https://mcp.deepwiki.com/mcp 2>/dev/null && \
-        print_success "DeepWiki MCP server registered" || \
-        print_warning "DeepWiki MCP registration failed"
     echo ""
 
     # Show next steps
@@ -272,111 +316,13 @@ claude_setup() {
     print_info "  1. Configure local settings: ~/.claude/settings.local.json"
     print_info "  2. (Optional) Install skill sets:"
     print_info "     ./nanokit ecc-install    # Everything Claude Code skills"
-    print_info "     ./nanokit aris-install   # ARIS research skills"
     print_info "     ./nanokit codex-install  # OpenAI Codex CLI + MCP"
     echo ""
     print_success "🤖 Claude Code setup completed!"
 }
 
-# ARIS (Auto-Research-In-Sleep) optional setup
-ARIS_REPO="https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep.git"
-ARIS_DIR="$NANOKIT_ROOT/claude/external/aris"
-ARIS_SKILLS_DIR="$HOME/.claude/skills"
-
-# Directories under ARIS skills/ that are alternative-stack packages (Codex-as-main,
-# Gemini-as-reviewer, etc.), NOT Claude Code skills. The default ARIS flow is Claude Code
-# as executor + Codex as reviewer via Codex MCP, so these should be excluded from the
-# ~/.claude/skills/ symlink loop.
-ARIS_NON_CLAUDE_PACKAGES=(skills-codex skills-codex-claude-review skills-codex-gemini-review)
-
-aris_is_non_claude_package() {
-    local name="$1"
-    local pkg
-    for pkg in "${ARIS_NON_CLAUDE_PACKAGES[@]}"; do
-        [[ "$name" == "$pkg" ]] && return 0
-    done
-    return 1
-}
-
-aris_install() {
-    print_ascii_art
-
-    print_step "Installing ARIS (Auto-Research-In-Sleep) skills..."
-    echo ""
-
-    if ! command -v git &> /dev/null; then
-        print_error "git is required. Install with: pixi global install git"
-        exit 1
-    fi
-
-    if [[ -d "$ARIS_DIR/.git" ]]; then
-        print_step "Updating existing ARIS clone..."
-        git -C "$ARIS_DIR" pull --ff-only
-    else
-        print_step "Cloning ARIS repository to $ARIS_DIR..."
-        mkdir -p "$(dirname "$ARIS_DIR")"
-        git clone --depth 1 "$ARIS_REPO" "$ARIS_DIR"
-    fi
-    print_success "ARIS repository ready"
-    echo ""
-
-    if [[ ! -d "$ARIS_DIR/skills" ]]; then
-        print_error "ARIS skills directory not found at $ARIS_DIR/skills"
-        exit 1
-    fi
-
-    # Clean up stale non-Claude package symlinks left by earlier nanokit versions
-    # that indiscriminately symlinked every subdirectory of skills/.
-    if [[ -d "$ARIS_SKILLS_DIR" ]]; then
-        local pkg
-        for pkg in "${ARIS_NON_CLAUDE_PACKAGES[@]}"; do
-            local stale="$ARIS_SKILLS_DIR/$pkg"
-            if [[ -L "$stale" ]]; then
-                rm "$stale"
-                print_warning "Removed stale Claude symlink: $stale"
-            fi
-        done
-    fi
-
-    mkdir -p "$ARIS_SKILLS_DIR"
-
-    print_step "Symlinking ARIS skills into $ARIS_SKILLS_DIR..."
-    local count=0
-    local skipped=0
-    for skill_path in "$ARIS_DIR"/skills/*/; do
-        [[ -d "$skill_path" ]] || continue
-        local name
-        name="$(basename "$skill_path")"
-
-        if aris_is_non_claude_package "$name"; then
-            continue
-        fi
-
-        local target="$ARIS_SKILLS_DIR/$name"
-
-        if [[ -e "$target" && ! -L "$target" ]]; then
-            print_warning "Skipping '$name' (existing non-symlink)"
-            skipped=$((skipped + 1))
-            continue
-        fi
-        ln -sfn "${skill_path%/}" "$target"
-        count=$((count + 1))
-    done
-    print_success "Linked $count ARIS skill(s)"
-    if [[ $skipped -gt 0 ]]; then
-        print_warning "$skipped skill(s) skipped due to name collision"
-    fi
-    echo ""
-
-    # ARIS uses Codex as the external reviewer via Codex MCP registered in Claude Code.
-    aris_codex_mcp_setup
-
-    print_info "ARIS docs: https://github.com/wanshuiyin/Auto-claude-code-research-in-sleep"
-    print_success "🌙 ARIS installed. Restart Claude Code to load new skills."
-}
-
 # Register Codex as an MCP server in Claude Code.
-# Shared by codex_install() and aris_codex_mcp_setup().
+# Used by codex_install().
 # Returns 0 on success/already-registered, 1 if claude CLI is unavailable.
 codex_mcp_register() {
     if ! command -v claude &> /dev/null; then
@@ -396,83 +342,6 @@ codex_mcp_register() {
             print_info "  claude mcp add codex -s user -- codex mcp-server"
         fi
     fi
-}
-
-# Set up the Codex reviewer path for ARIS:
-#  1. Ensure Codex CLI is installed
-#  2. Register Codex MCP
-#  3. Remind the user to run interactive setup
-aris_codex_mcp_setup() {
-    print_step "Setting up Codex MCP reviewer for ARIS..."
-    echo ""
-
-    # 1. Ensure Codex CLI is installed
-    if ! command -v codex &> /dev/null; then
-        print_warning "Codex CLI not found. Installing..."
-        codex_install
-        echo ""
-        if ! command -v codex &> /dev/null; then
-            print_error "Codex CLI install failed. Run: ./nanokit codex-install"
-            return 1
-        fi
-    else
-        print_info "Codex CLI present: $(codex --version 2>/dev/null || echo 'unknown')"
-    fi
-    echo ""
-
-    # 2. Register Codex MCP (shared logic)
-    codex_mcp_register || return 1
-    echo ""
-
-    # 3. Remind about interactive setup
-    print_info "Next steps (interactive, run manually):"
-    print_info "  1. codex login        # authenticate Codex"
-    print_info "  2. codex setup        # select gpt-5.4 as the default model"
-    print_info "  3. Restart Claude Code to load the new MCP server"
-    echo ""
-}
-
-aris_update() {
-    if [[ ! -d "$ARIS_DIR/.git" ]]; then
-        print_error "ARIS is not installed. Run: ./nanokit aris-install"
-        exit 1
-    fi
-    aris_install
-}
-
-aris_uninstall() {
-    print_ascii_art
-
-    print_warning "This will remove ARIS symlinks and the clone at $ARIS_DIR"
-    read -p "🗑️  Proceed? (y/N): " -n 1 -r
-    echo ""
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_info "Cancelled"
-        return 0
-    fi
-
-    if [[ -d "$ARIS_SKILLS_DIR" ]]; then
-        print_step "Removing ARIS symlinks from $ARIS_SKILLS_DIR..."
-        local removed=0
-        for link in "$ARIS_SKILLS_DIR"/*; do
-            [[ -L "$link" ]] || continue
-            local resolved
-            resolved="$(readlink "$link")"
-            if [[ "$resolved" == "$ARIS_DIR"/* ]]; then
-                rm "$link"
-                removed=$((removed + 1))
-            fi
-        done
-        print_success "Removed $removed ARIS symlink(s)"
-    fi
-
-    if [[ -d "$ARIS_DIR" ]]; then
-        print_step "Removing ARIS clone..."
-        rm -rf "$ARIS_DIR"
-        print_success "Removed $ARIS_DIR"
-    fi
-
-    print_success "🧹 ARIS uninstalled"
 }
 
 # last30days optional setup
@@ -886,12 +755,13 @@ ecc_uninstall() {
 }
 
 # Codex CLI (OpenAI) optional setup — installed via npm to get the latest upstream release,
-# since conda-forge tends to lag. Uses the nodejs env managed by pixi-global.toml.
+# since conda-forge tends to lag. Uses npm from the fnm-managed Node (see zshrc: `fnm env`).
 CODEX_NPM_PACKAGE="@openai/codex"
 
-# Expose a binary installed into the pixi nodejs env by symlinking it into ~/.pixi/bin,
-# which pixi already puts on PATH. Keeps npm-installed CLIs discoverable without editing
-# pixi-global.toml's [envs.nodejs] exposed table (which would be overwritten by `pixi global sync`).
+# Expose a binary installed into fnm's active Node by symlinking it into ~/.pixi/bin,
+# which pixi already puts on PATH. Keeps npm-installed CLIs discoverable on PATH.
+# NOTE: fnm installs global packages per Node version — switching the fnm default
+# version orphans this symlink; re-run `nanokit codex-update` after changing it.
 codex_link_binary() {
     local npm_prefix bin_src bin_dst
     npm_prefix="$(npm prefix -g 2>/dev/null)"
@@ -919,7 +789,7 @@ codex_install() {
     echo ""
 
     if ! command -v npm &> /dev/null; then
-        print_error "npm is required. Install with: pixi global install nodejs"
+        print_error "npm is required. Install Node via fnm first: fnm install --lts && fnm default lts-latest"
         exit 1
     fi
 
@@ -941,6 +811,10 @@ codex_install() {
     codex_mcp_register
     echo ""
 
+    # Apply shared instructions, skills, and portable Codex settings.
+    agent_config_sync
+    echo ""
+
     print_info "Next steps (interactive, run manually):"
     print_info "  1. codex login        # authenticate Codex"
     print_info "  2. codex setup        # select default model"
@@ -950,7 +824,7 @@ codex_install() {
 
 codex_update() {
     if ! command -v npm &> /dev/null; then
-        print_error "npm is required. Install with: pixi global install nodejs"
+        print_error "npm is required. Install Node via fnm first: fnm install --lts && fnm default lts-latest"
         exit 1
     fi
 
@@ -961,6 +835,9 @@ codex_update() {
     if command -v codex &> /dev/null; then
         print_info "Version: $(codex --version 2>/dev/null || echo 'unknown')"
     fi
+    echo ""
+    print_warning "Restart Claude Code completely so the running 'codex mcp-server' picks up the new binary."
+    print_info "  A new chat alone is not enough — the MCP process is spawned once at session launch."
 }
 
 codex_uninstall() {
@@ -989,6 +866,138 @@ codex_uninstall() {
     fi
 
     print_success "🧹 Codex CLI uninstalled"
+}
+
+# Sync the shared instruction/skill sources to both clients while upserting only
+# nanokit's portable keys into Codex's stateful config.toml. Pass --diff to preview.
+agent_config_sync() {
+    local script="$NANOKIT_ROOT/codex/sync-config.py"
+    if ! command -v python3 &> /dev/null; then
+        print_warning "python3 not found; skipping Codex config sync."
+        return 1
+    fi
+    if [[ ! -f "$script" ]]; then
+        print_warning "Codex config sync script missing: $script"
+        return 1
+    fi
+    print_step "Syncing shared Claude Code / Codex settings..."
+    python3 "$script" "$@"
+
+    local arg
+    for arg in "$@"; do
+        if [[ "$arg" == "--diff" ]]; then
+            sync_shared_http_mcps true
+            return 0
+        fi
+    done
+    sync_shared_http_mcps
+}
+
+# Compatibility for existing scripts and muscle memory.
+codex_config_sync() {
+    agent_config_sync "$@"
+}
+
+# Gemini CLI (Google) optional setup — same npm-under-fnm pattern as Codex above.
+# Requires Node >= 20 (fnm-managed; see zshrc `fnm env`). conda-forge has no
+# @google/gemini-cli package, so npm is the supported install path.
+GEMINI_NPM_PACKAGE="@google/gemini-cli"
+
+# Symlink the npm-installed gemini binary into ~/.pixi/bin (already on PATH).
+# NOTE: fnm installs globals per Node version — switching the fnm default orphans
+# this symlink; re-run `nanokit gemini-update` after changing the default version.
+gemini_link_binary() {
+    local npm_prefix bin_src bin_dst
+    npm_prefix="$(npm prefix -g 2>/dev/null)"
+    if [[ -z "$npm_prefix" ]]; then
+        print_warning "Could not determine npm global prefix."
+        return 1
+    fi
+    bin_src="$npm_prefix/bin/gemini"
+    bin_dst="$HOME/.pixi/bin/gemini"
+
+    if [[ ! -x "$bin_src" ]]; then
+        print_warning "gemini binary not found at $bin_src"
+        return 1
+    fi
+
+    mkdir -p "$HOME/.pixi/bin"
+    ln -sfn "$bin_src" "$bin_dst"
+    print_success "Linked $bin_dst -> $bin_src"
+}
+
+gemini_install() {
+    print_ascii_art
+
+    print_step "Installing Google Gemini CLI ($GEMINI_NPM_PACKAGE)..."
+    echo ""
+
+    if ! command -v npm &> /dev/null; then
+        print_error "npm is required. Install Node via fnm first: fnm install --lts && fnm default lts-latest"
+        exit 1
+    fi
+
+    npm install -g "$GEMINI_NPM_PACKAGE"
+    print_success "Gemini CLI installed"
+    echo ""
+
+    gemini_link_binary
+    echo ""
+
+    if command -v gemini &> /dev/null; then
+        print_info "Version: $(gemini --version 2>/dev/null || echo 'unknown')"
+    else
+        print_warning "gemini command not found on PATH. Ensure ~/.pixi/bin is on PATH."
+    fi
+    echo ""
+
+    print_info "Next steps (interactive, run manually):"
+    print_info "  1. gemini              # first run prompts Google OAuth login in the browser"
+    print_info "     (or set GEMINI_API_KEY=... to use an API key instead)"
+    print_success "✨ Gemini CLI setup completed!"
+}
+
+gemini_update() {
+    if ! command -v npm &> /dev/null; then
+        print_error "npm is required. Install Node via fnm first: fnm install --lts && fnm default lts-latest"
+        exit 1
+    fi
+
+    print_step "Updating Gemini CLI to latest..."
+    npm install -g "$GEMINI_NPM_PACKAGE@latest"
+    print_success "Gemini CLI updated"
+    gemini_link_binary
+    if command -v gemini &> /dev/null; then
+        print_info "Version: $(gemini --version 2>/dev/null || echo 'unknown')"
+    fi
+}
+
+gemini_uninstall() {
+    print_ascii_art
+
+    print_warning "This will remove Gemini CLI ($GEMINI_NPM_PACKAGE) from npm global."
+    read -p "🗑️  Proceed? (y/N): " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_info "Cancelled"
+        return 0
+    fi
+
+    if ! command -v npm &> /dev/null; then
+        print_error "npm is not available; nothing to uninstall via npm."
+        exit 1
+    fi
+
+    print_step "Removing Gemini CLI..."
+    npm uninstall -g "$GEMINI_NPM_PACKAGE" || true
+
+    local bin_dst="$HOME/.pixi/bin/gemini"
+    if [[ -L "$bin_dst" ]]; then
+        rm -f "$bin_dst"
+        print_success "Removed $bin_dst"
+    fi
+
+    print_success "🧹 Gemini CLI uninstalled"
 }
 
 # Zotero MCP setup — pixi project + OS-native secret store + HTTP server lifecycle.
@@ -1125,21 +1134,9 @@ zotero_mcp_install() {
     fi
     echo ""
 
-    # --- 3. Register MCP client (idempotent) ---
-    if command -v claude &> /dev/null; then
-        if claude mcp list 2>/dev/null | grep -q '^zotero\b'; then
-            print_info "Claude MCP 'zotero' already registered."
-        else
-            print_step "Registering zotero MCP server in Claude Code (HTTP transport)..."
-            if claude mcp add zotero -s user --transport http "http://localhost:${ZOTERO_MCP_PORT:-8321}/mcp" 2>&1; then
-                print_success "zotero MCP registered"
-            else
-                print_warning "Auto-registration failed. Run manually:"
-                print_info "  claude mcp add zotero -s user --transport http http://localhost:8321/mcp"
-            fi
-        fi
-        echo ""
-    fi
+    # --- 3. Register the same HTTP endpoint in both agent clients ---
+    register_shared_http_mcp zotero "http://127.0.0.1:${ZOTERO_MCP_PORT:-8321}/mcp"
+    echo ""
 
     # --- 4. Health check (restart to pick up credentials) ---
     print_step "Restarting zotero-mcp server to pick up credentials..."
@@ -1323,15 +1320,6 @@ main() {
         "claude-setup")
             claude_setup
             ;;
-        "aris-install")
-            aris_install
-            ;;
-        "aris-update")
-            aris_update
-            ;;
-        "aris-uninstall")
-            aris_uninstall
-            ;;
         "last30days-install")
             last30days_install
             ;;
@@ -1358,6 +1346,21 @@ main() {
             ;;
         "codex-uninstall")
             codex_uninstall
+            ;;
+        "codex-config-sync")
+            codex_config_sync "${@:2}"
+            ;;
+        "agent-config-sync")
+            agent_config_sync "${@:2}"
+            ;;
+        "gemini-install")
+            gemini_install
+            ;;
+        "gemini-update")
+            gemini_update
+            ;;
+        "gemini-uninstall")
+            gemini_uninstall
             ;;
         "zotero-mcp-install")
             zotero_mcp_install
